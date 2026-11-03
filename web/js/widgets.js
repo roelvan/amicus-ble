@@ -88,8 +88,9 @@ export function drawTrajectory(canvas, balls, {selected = -1, playing = -1} = {}
 
 // ---------- SpinView: the row of ball chips ----------
 export class SpinView {
-  constructor({editable = false, touchable = false, maxBalls = 10, onSelect, onAdd, onLongPress} = {}){
-    Object.assign(this, {editable, touchable, maxBalls, onSelect, onAdd, onLongPress});
+  // rScale: chip size relative to the view height (the editor keeps the size of the original 40% table)
+  constructor({editable = false, touchable = false, maxBalls = 10, rScale = 1, onSelect, onAdd, onLongPress} = {}){
+    Object.assign(this, {editable, touchable, maxBalls, rScale, onSelect, onAdd, onLongPress});
     this.balls = []; this.selected = -1; this.playing = -1;
     this.el = h("canvas", {class:"spinview"});
     this.geo = [];
@@ -99,7 +100,7 @@ export class SpinView {
     this.balls = balls; this.selected = selected; this.playing = playing; this.draw();
   }
   layout(hh){
-    const r = clamp(hh/5, 8, 36), w = clamp(r/6, 2, 4);
+    const r = clamp(hh*this.rScale/5, 8, 36), w = clamp(r/6, 2, 4);
     const n = this.balls.length + (this.editable && this.balls.length < this.maxBalls ? 1 : 0);
     const pad = Math.max(1.21*r, r + 8) + 2;          // halo / arrowhead must stay inside
     const step = Math.max(0, (hh/2 - pad)/8);         // the original uses h/20 and clips at the edges

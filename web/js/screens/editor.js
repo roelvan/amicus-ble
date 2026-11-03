@@ -63,7 +63,7 @@ export function editorScreen(ctx = {}){
   const table = h("canvas", {class:"ed-table"});
   const traj = h("canvas", {class:"ed-traj"});
   const status = h("div", {class:"play-status"});
-  const spin = new SpinView({editable:true, touchable:true, maxBalls:10,
+  const spin = new SpinView({editable:true, touchable:true, maxBalls:10, rScale: 40/55,
     onSelect: i => chipTap(i), onAdd: () => addBall(), onLongPress: (i, anchor) => chipMenu(i, anchor)});
   const spinWrap = h("div", {class:"ed-spin"}, spin.el);
   const header = h("div", {class:"ed-header"}, table, spinWrap, traj, status);
