@@ -1,0 +1,13 @@
+{
+  // Static-only deploy: no Worker script, Cloudflare serves ./web as-is.
+  "name": "amicus",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./web",
+    "not_found_handling": "404-page"
+  },
+  "workers_dev": false,
+  "routes": [
+    { "pattern": "amicus.vaneyghen.be", "custom_domain": true }
+  ]
+}
