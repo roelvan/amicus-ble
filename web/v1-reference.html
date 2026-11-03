@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Amicus Remote</title>
+<style>
+:root{--bg:#111418;--card:#1b2027;--line:#2a313a;--fg:#e8ecf1;--dim:#8b95a3;--acc:#3fa7ff;--ok:#2fbf71;--bad:#ff4d4f;--warn:#f5a623}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 -apple-system,system-ui,sans-serif;padding:env(safe-area-inset-top) 16px calc(env(safe-area-inset-bottom) + 140px)}
+h1{font-size:18px;margin:14px 0 10px;display:flex;align-items:center;gap:8px}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin:0 0 10px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--bad);display:inline-block}
+.dot.on{background:var(--ok)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:0 0 12px}
+button{font:inherit;color:var(--fg);background:#2a313a;border:0;border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+button:active{filter:brightness(1.3)}
+button:disabled{opacity:.4}
+button.acc{background:var(--acc);color:#001}
+button.go{background:var(--ok);color:#001;font-weight:600}
+button.stop{background:var(--bad);color:#fff;font-weight:700}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.status{color:var(--dim);font-size:13px}
+.slider{display:grid;grid-template-columns:92px 1fr 64px;gap:8px;align-items:center;margin:6px 0}
+.slider label{color:var(--dim);font-size:13px}
+.slider output{text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--acc)}
+.balls{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.balls button{min-width:44px;padding:8px}
+.balls button.sel{outline:2px solid var(--acc)}
+.balls button.off{opacity:.45;text-decoration:line-through}
+select,input[type=text]{font:inherit;background:#0d1014;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:9px;min-height:44px}
+.adj{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.adj div{display:flex;flex-direction:column;gap:6px;align-items:stretch;text-align:center}
+.adj span{color:var(--dim);font-size:13px}
+#log{font:12px/1.35 ui-monospace,Menlo,monospace;color:var(--dim);max-height:180px;overflow:auto;white-space:pre-wrap;margin:0}
+#bar{position:fixed;left:0;right:0;bottom:0;background:rgba(17,20,24,.96);border-top:1px solid var(--line);padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);display:flex;gap:10px}
+#bar button{flex:1;min-height:56px;font-size:17px}
+#nobt{display:none;border-color:var(--warn)}
+#bar{flex-wrap:wrap}
+#runInfo{flex-basis:100%;text-align:center;font-variant-numeric:tabular-nums;font-size:15px;color:var(--dim);min-height:0}
+#runInfo:empty{display:none}
+#runInfo.pause{font-size:26px;font-weight:700;color:var(--warn)}
+input[type=checkbox]{width:22px;height:22px;accent-color:var(--acc);margin:0}
+label.chk{display:flex;gap:10px;align-items:center;min-height:40px}
+#table{width:100%;max-width:440px;display:block;margin:0 auto 8px;touch-action:manipulation;cursor:crosshair;user-select:none;-webkit-user-select:none}
+.seg{display:flex;background:#0d1014;border-radius:10px;padding:3px;gap:3px;margin-bottom:10px}
+.seg button{flex:1;background:transparent;min-height:38px}
+.seg button.on{background:#2a313a;font-weight:600}
+#landInfo{font-size:13px;color:var(--dim);text-align:center;min-height:1.4em}
+#calBox{display:none}
+#calBox.on{display:block}
+</style>
+</head>
+<body>
+<h1><span id="dot" class="dot"></span> Amicus Remote </h1>
+
+<div class="card" id="nobt">
+  <b>Web Bluetooth is not available in this browser.</b><br>
+  On iPhone/iPad, open this page in the <b>Bluefy</b> browser (App Store).
+  Safari, Brave, Firefox and Chrome on iOS do not support Bluetooth.
+  On Android/desktop, use Chrome or Edge.
+</div>
+
+<div class="card">
+  <div class="row">
+    <button class="acc" id="btnConnect">Connect</button>
+    <button id="btnDisconnect" disabled>Disconnect</button>
+    <span class="status grow" id="status">Not connected</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Table (your side, robot at the top)</h2>
+  <div class="seg"><button id="modeAim" class="on">Aim</button><button id="modeCal">Calibrate</button></div>
+  <svg id="table" viewBox="-95 112 190 196" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div id="landInfo"></div>
+  <div id="aimHelp" class="status" style="margin-top:6px">Tap the table to aim the selected ball. The app sets the place, and the speed for the depth.
+    <label class="chk"><input type="checkbox" id="aimKeep"> Keep speed (tap changes only left/right)</label></div>
+  <div id="calBox">
+    <p class="status" style="margin:6px 0 10px">Shoot the selected ball, then tap where it really landed. Use different speeds, heights, spins and places. 6 or more points give a good fit.</p>
+    <div class="row">
+      <button id="calShoot">Test ball</button>
+      <button id="calUndo">Undo</button>
+      <button id="calReset">Reset</button>
+      <span class="status grow" id="calStat"></span>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Drill</h2>
+  <div class="row" style="margin-bottom:10px">
+    <select id="preset" class="grow"></select>
+    <button id="btnSave">Save</button>
+    <button id="btnDel">Delete</button>
+  </div>
+  <div class="balls" id="balls"></div>
+  <div class="row" style="margin-bottom:6px">
+    <button id="btnAdd">+ Ball</button>
+    <button id="btnRemove">− Ball</button>
+    <button id="btnToggle">On/Off</button>
+    <button id="btnPreview" title="Shoot this one ball">Test ball</button>
+  </div>
+  <div id="sliders"></div>
+</div>
+
+<div class="card">
+  <h2>Tempo</h2>
+  <div class="slider"><label>Balls/min</label><input type="range" id="bpm" min="5" max="120" value="40"><output id="bpmOut">40</output></div>
+  <div class="slider"><label>Run for</label><input type="range" id="dur" min="0" max="600" step="10" value="0"><output id="durOut">∞</output></div>
+</div>
+
+<div class="card">
+  <h2>Sets with pause</h2>
+  <label class="chk"><input type="checkbox" id="pOn"> Pause after each set of balls</label>
+  <div class="slider"><label>Balls/set</label><input type="range" id="pPer" min="1" max="30" value="3"><output id="pPerOut">3</output></div>
+  <div class="slider"><label>Pause</label><input type="range" id="pSecs" min="2" max="60" value="8"><output id="pSecsOut">8 s</output></div>
+  <div class="slider"><label>Sets</label><input type="range" id="pSets" min="0" max="30" value="0"><output id="pSetsOut">∞</output></div>
+  <p class="status" style="margin:4px 0 8px">Each set starts again at ball 1. You hear 3 short beeps, then a long beep when the next set starts. Push "Go now" to end the pause early.</p>
+  <label class="chk status"><input type="checkbox" id="pRobot"> Let the robot do the pause (experimental: robot cycle command, no beeps)</label>
+</div>
+
+<div class="card">
+  <h2>Live adjust (while playing)</h2>
+  <div class="adj">
+    <div><span>Height</span><button data-adj="0,1">▲</button><button data-adj="0,-1">▼</button></div>
+    <div><span>Spin</span><button data-adj="1,1">＋</button><button data-adj="1,-1">−</button></div>
+    <div><span>Speed</span><button data-adj="3,1">＋</button><button data-adj="3,-1">−</button></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row" style="margin-bottom:8px"><h2 class="grow" style="margin:0">Log</h2><button id="btnInfo">Info</button><button id="btnClear">Clear</button></div>
+  <pre id="log"></pre>
+</div>
+
+<div id="bar">
+  <div id="runInfo"></div>
+  <button class="go" id="btnStart" disabled>Start</button>
+  <button class="stop" id="btnStop" disabled>STOP</button>
+</div>
+
+<script>
+"use strict";
+const SERVICE = "a7bdef44-a80c-11e7-abc4-cec278b6b50a";
+const CHAR    = "a7bdf2aa-a80c-11e7-abc4-cec278b6b50a";
+const C = {INFO:0x01, STATE:0x05, ERROR:0x07, SEL:0x11, LOAD1:0x12, LOAD:0x14, ADJ:0x15,
+           START:0x20, STOP:0x21, BPM:0x22, PLAY1:0x23, RANDOM:0x25, CYCLE:0x27, BALL:0x2C};
+const STATUS = {0xF0:"OK",0x00:"OK",0xF1:"invalid ball state",0xF2:"invalid ball number",
+                0xF3:"invalid ball parameter",0xF4:"cannot play",0xFA:"cannot set",0x07:"bad data"};
+const STATES = {2:"idle",3:"playing",4:"stopping",10:"error",15:"waiting for sound",64:"bootloader"};
+
+// Ball fields: key, label, min, max, default, formatter (raw -> UI text)
+const FIELDS = [
+  ["trajectory","Height",0,153,92, v=>v],
+  ["spin","Spin",0,12,5, v=>{const s=v-5; return s===0?"none":(s>0?"top +"+s:"back "+s)}],
+  ["side","Side spin",0,12,6, v=>{const d=(v-6)*15; return d===0?"none":(d>0?"+":"")+d+"°"}],
+  ["speed","Speed",0,24,12, v=>v+1],
+  ["place","Place",0,16,8, v=>{const p=v-8; return p===0?"centre":(p<0?"L "+(-p):"R "+p)}],
+  ["freq","Interval",0,12,6, v=>{const f=(v-6)*10; return f===0?"0 %":(f>0?"+":"")+f+" %"}],
+];
+const defBall = () => Object.fromEntries([...FIELDS.map(f=>[f[0],f[4]]), ["on",true]]);
+
+const $ = id => document.getElementById(id);
+const logEl = $("log");
+const T0 = performance.now();
+function log(msg){
+  const t = ((performance.now()-T0)/1000).toFixed(1).padStart(6);
+  logEl.textContent += t+"s "+msg+"\n";
+  if (logEl.textContent.length > 20000) logEl.textContent = logEl.textContent.slice(-15000);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+const hex = a => [...a].map(b=>b.toString(16).padStart(2,"0")).join(" ");
+
+// ---------- state ----------
+let drill = {balls:[defBall()], bpm:40};
+let sel = 0;
+let dev = null, chr = null;
+let session = false, pausing = false, keepalive = null, stopTimer = null, tick = null;
+let launches = 0, ballsInSet = 0, setsDone = 0, pauseEnd = 0;
+const pauseCfg = () => drill.pause || (drill.pause = {on:false, perSet:3, secs:8, sets:0, robot:false});
+
+// ---------- BLE ----------
+let rx = [];
+const waiters = new Map();   // cmd -> [resolve, timer]
+let queue = Promise.resolve();
+
+function frame(cmd, payload=[]){
+  const n = 4 + payload.length;
+  return new Uint8Array([0x2A, n & 0xFF, n >> 8, cmd, ...payload]);
+}
+
+function onNotify(e){
+  const v = e.target.value;
+  for (let i=0;i<v.byteLength;i++) rx.push(v.getUint8(i));
+  while (rx.length >= 3){
+    if (rx[0] !== 0x2A){ const i = rx.indexOf(0x2A); rx = i<0 ? [] : rx.slice(i); continue; }
+    const n = rx[1] | (rx[2]<<8);
+    if (n < 4){ rx.shift(); continue; }
+    if (rx.length < n) break;
+    const cmd = rx[3], p = rx.slice(4,n); rx = rx.slice(n);
+    handle(cmd, p);
+  }
+}
+
+function handle(cmd, p){
+  if (cmd === C.BALL){
+    const t = p.length>=3 ? p[1]|(p[2]<<8) : -1;
+    if (t === 0 && session && !pausing){
+      launches++; ballsInSet++;
+      const pc = pauseCfg();
+      if (pc.on && !pc.robot && ballsInSet >= pc.perSet) beginPause();
+      updateRun();
+    }
+    return;
+  }
+  let note = "";
+  if (cmd === C.STATE && p.length) { note = " state "+(STATES[p[0]]||p[0]); }
+  else if (cmd === C.ERROR) note = " ROBOT ERROR "+(p[0]??"");
+  else if (p.length===1 && STATUS[p[0]] && cmd!==C.BPM) note = " "+STATUS[p[0]];
+  if (cmd !== C.STATE || !session) log("<- 0x"+cmd.toString(16).padStart(2,"0")+" "+hex(p)+note);
+  const w = waiters.get(cmd);
+  if (w){ clearTimeout(w[1]); waiters.delete(cmd); w[0](p); }
+}
+
+// GATT writes must not overlap, so every send goes through one queue.
+function send(cmd, payload=[], {reply=true, timeout=3000, quiet=false}={}){
+  const job = queue.then(async () => {
+    if (!chr) throw new Error("not connected");
+    const data = frame(cmd, payload);
+    if (!quiet) log("-> "+hex(data));
+    const p = reply ? new Promise(res => {
+      const t = setTimeout(()=>{ waiters.delete(cmd); if(!quiet) log("   (no reply to 0x"+cmd.toString(16)+")"); res(null); }, timeout);
+      waiters.set(cmd, [res, t]);
+    }) : null;
+    await (chr.writeValueWithResponse ? chr.writeValueWithResponse(data) : chr.writeValue(data));
+    return p ? await p : null;
+  });
+  queue = job.catch(()=>{});
+  return job;
+}
+
+async function connect(){
+  try{
+    setStatus("Choosing device…");
+    dev = await navigator.bluetooth.requestDevice({filters:[{services:[SERVICE]}]});
+    dev.addEventListener("gattserverdisconnected", onDisconnected);
+    setStatus("Connecting to "+(dev.name||"robot")+"…");
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(SERVICE);
+    chr = await svc.getCharacteristic(CHAR);
+    chr.addEventListener("characteristicvaluechanged", onNotify);
+    await chr.startNotifications();
+    await new Promise(r=>setTimeout(r,1000));
+    const info = await send(C.INFO);
+    const fw = info && info.length>=5 ? info[3]+"."+info[4] : "?";
+    setStatus("Connected: "+(dev.name||"Amicus")+" · fw "+fw);
+    $("dot").classList.add("on");
+    setButtons(true);
+    await send(C.STATE);
+  }catch(err){
+    log("connect failed: "+err.message);
+    setStatus("Not connected");
+    chr = null;
+  }
+}
+
+function onDisconnected(){
+  chr = null; rx = [];
+  for (const [,w] of waiters){ clearTimeout(w[1]); w[0](null); }
+  waiters.clear();
+  endSession();
+  $("dot").classList.remove("on");
+  setButtons(false);
+  setStatus("Disconnected (robot keeps playing if it was running)");
+  log("disconnected");
+}
+
+async function disconnect(){
+  if (chr && session) await stop();
+  if (dev && dev.gatt.connected) dev.gatt.disconnect();
+}
+
+// ---------- drill control ----------
+function ballBytes(b){
+  return [b.trajectory & 0xFF, b.trajectory >> 8, b.spin, b.side, b.speed, b.place, b.freq];
+}
+function drillPayload(){
+  const p = new Array(81).fill(0);
+  drill.balls.slice(0,10).forEach((b,i)=>{
+    p[1+i*8] = b.on ? 1 : 0;
+    ballBytes(b).forEach((v,j)=>p[2+i*8+j]=v);
+  });
+  return p;
+}
+
+// Same order as the official app. Also used for each new set, so every set starts at ball 1.
+async function loadAndStart(){
+  const pc = pauseCfg();
+  await send(C.STOP);                 // robot may still run an old drill
+  await send(C.BPM, [drill.bpm]);
+  await send(C.RANDOM, [0]);
+  await send(C.CYCLE, pc.on && pc.robot ? [2, pc.perSet, pc.secs] : [0, 40, 20]);
+  await send(C.LOAD, drillPayload());
+  const r = await send(C.START, [0]);
+  if (!r || (r[0]!==0xF0 && r[0]!==0x00)) { log("start refused: "+(r?STATUS[r[0]]||hex(r):"no reply")); return false; }
+  return true;
+}
+
+async function start(){
+  if (!drill.balls.some(b=>b.on)) { log("no ball is on"); return; }
+  endSession();
+  unlockAudio();
+  launches = 0; ballsInSet = 0; setsDone = 0;
+  session = true;
+  keepalive = setInterval(()=>{ if(chr) send(C.STATE,[],{quiet:true}).catch(()=>{}); }, 2000);
+  updateRun();
+  $("btnStart").disabled = true;
+  try{
+    if (!(await loadAndStart())) { endSession(); return; }
+    const secs = +$("dur").value;
+    if (secs > 0) stopTimer = setTimeout(stop, secs*1000);
+  } finally { $("btnStart").disabled = !chr; }
+}
+
+function beginPause(){
+  const pc = pauseCfg();
+  pausing = true; setsDone++;
+  send(C.STOP).catch(()=>{});
+  if (pc.sets && setsDone >= pc.sets){ log("all "+pc.sets+" sets done"); beep(990, .5); endSession(); return; }
+  pauseEnd = performance.now() + pc.secs*1000;
+  let lastBeep = null;
+  clearInterval(tick);
+  tick = setInterval(()=>{
+    const left = Math.ceil((pauseEnd - performance.now())/1000);
+    if (left >= 1 && left <= 3 && left !== lastBeep){ lastBeep = left; beep(660, .12); }
+    if (left <= 0) resume(); else updateRun();
+  }, 100);
+  updateRun();
+}
+
+async function resume(){
+  clearInterval(tick); tick = null;
+  if (!session || !pausing || !chr) return;
+  beep(990, .35);
+  try { navigator.vibrate && navigator.vibrate(200); } catch {}
+  ballsInSet = 0;
+  pausing = false;
+  updateRun();
+  if (!(await loadAndStart())) endSession();
+}
+
+function endSession(){
+  session = false; pausing = false;
+  clearInterval(keepalive); keepalive = null;
+  clearInterval(tick); tick = null;
+  clearTimeout(stopTimer); stopTimer = null;
+  updateRun();
+}
+
+async function stop(){
+  endSession();
+  if (chr) await send(C.STOP);
+}
+
+function updateRun(){
+  const el = $("runInfo"), pc = pauseCfg();
+  const of = pc.sets ? "/"+pc.sets : "";
+  el.classList.toggle("pause", session && pausing);
+  if (!session) el.textContent = launches ? launches+" balls" : "";
+  else if (pausing) el.textContent = `Pause ${Math.max(0, Math.ceil((pauseEnd-performance.now())/1000))} s · next: set ${setsDone+1}${of}`;
+  else if (pc.on && !pc.robot) el.textContent = `Set ${setsDone+1}${of} · ball ${ballsInSet}/${pc.perSet} · ${launches} total`;
+  else el.textContent = launches+" balls";
+  $("btnStart").textContent = !session ? "Start" : pausing ? "Go now" : "Restart";
+}
+
+// beeps (iOS allows audio only after a tap, so Start unlocks it)
+let actx = null;
+function unlockAudio(){
+  try { actx = actx || new (window.AudioContext||window.webkitAudioContext)(); actx.resume(); } catch {}
+}
+function beep(freq, dur){
+  if (!actx) return;
+  try{
+    const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime;
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.35, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+    o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur);
+  }catch{}
+}
+
+async function previewBall(){
+  const b = drill.balls[sel];
+  endSession();
+  await send(C.STOP);
+  await send(C.LOAD1, [0x01, 1, ...ballBytes(b)]);
+  await send(C.SEL, [0x01]);
+  await send(C.BPM, [20]);
+  await send(C.PLAY1, [], {timeout:2000});
+}
+
+// ---------- landing model ----------
+// Coordinates in cm. x: 0 = centre line, + = right (seen by the player).
+// d: distance from the net on the player's half (0 = net, 137 = end line).
+// The robot does not report where a ball lands. This is the physics model of the
+// official Android app (classes t0 + l1 in tt.butterfly.amicus): launch speed and
+// angles from the ball settings with two correction tables [spin][speed], then a
+// flight with gravity and air drag until the ball is at table height.
+// Calibration adds a linear correction (offset + scale) on top of it.
+const TW = 152.5, HALF = 137;
+// launch speed factor in % [spin 0-12][speed 0-24]
+const SPEED_FAC = [
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,99,99,99,98],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,102,100,100,103,104,106,109,109,107,110,113,113],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,103,110,114,118,124,127,127,124,121,121,121,120],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,99,100,99,97,96,98,104],
+  [100,100,100,100,100,100,100,100,100,100,100,100,102,100,103,102,103,103,103,103,101,100,100,102,104],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,99,99,99,97,94,97,98,97],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,100,98,96,93,93,93,93,91,90,90,91,90],
+  [100,100,100,100,100,100,100,100,100,100,100,100,100,98,98,96,93,93,93,93,91,88,88,90,90],
+  [100,100,100,100,100,100,100,100,100,100,100,100,98,98,96,96,93,93,93,93,91,88,87,89,89],
+  [100,100,100,100,100,100,100,100,100,100,100,100,98,97,94,93,91,90,90,89,87,87,87,87,87],
+  [100,100,100,100,100,100,100,100,100,100,101,98,95,93,89,87,85,84,83,83,81,79,78,79,78],
+  [100,100,100,100,100,100,100,100,100,100,101,98,95,91,90,88,85,84,82,81,80,78,77,78,77]];
+// correction added to the trajectory value [spin 0-12][speed 0-24]
+const ANGLE_CORR = [
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-8,-10,-13,-18,-22,-25,-28,-32,-32,-32,-32,-32],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-12,-15,-21,-27,-32,-36,-39,-42,-44,-46,-48,-50],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-15,-30,-38,-45,-52,-54,-55,-55,-55,-55,-55,-55],
+  [0,0,0,0,0,0,0,0,0,0,0,0,-3,-6,-10,-15,-19,-22,-24,-27,-28,-28,-28,-30,-40],
+  [0,0,0,0,0,0,0,0,0,0,0,0,-5,-10,-18,-22,-28,-30,-32,-32,-33,-34,-36,-38,-40],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-5,-12,-17,-22,-25,-27,-28,-31,-35,-35,-35,-35],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-5,-10,-14,-18,-20,-22,-24,-26,-26,-30,-30,-30],
+  [0,0,0,0,0,0,0,0,0,0,0,0,0,-3,-5,-7,-8,-9,-11,-13,-15,-17,-19,-20,-21],
+  [0,0,0,0,0,0,0,0,0,0,0,0,3,1,-4,-7,-8,-9,-13,-14,-15,-15,-17,-17,-20],
+  [0,0,0,0,0,0,0,0,0,0,0,3,6,1,-1,-5,-8,-10,-13,-14,-14,-14,-14,-14,-16],
+  [0,0,0,0,0,0,0,0,0,0,0,3,6,3,2,0,-2,-3,-6,-7,-8,-10,-12,-12,-12],
+  [0,0,0,0,0,0,0,0,0,0,5,10,15,15,15,15,14,12,11,10,10,10,9,8,8],
+  [0,0,0,0,0,0,0,0,0,0,5,10,18,18,17,16,15,15,15,15,14,13,12,12,12]];
+const HEAD = [0, 0.2, -1.26];        // launch point in m: x, height above table, z (net = 0)
+const DRAG = 3.383181128650849e-4 / 0.0027, G = 9.80665, DT = 0.01, NET_H = 0.1525;
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+function launchSpeed(s){             // m/s, before the spin factor
+  if (s >= 19) return ((s-18)*0.2 + 6.45) * 1.2;
+  if (s >= 11) return ((s-10)*0.25 + 4.45) * 1.2;
+  if (s === 10) return 5.34;
+  if (s === 9) return 4.92;
+  if (s === 8) return 4.5;
+  return (3.75 - (8-s)*0.2) * 1.2;
+}
+function launch(b){
+  const sp = clamp(b.spin, 0, 12), s = clamp(b.speed, 0, 24);
+  const v = launchSpeed(s) * SPEED_FAC[sp][s] / 100;
+  const el = Math.asin(((b.trajectory + ANGLE_CORR[sp][s]) - 90) * 0.05 / 14 + 0.25);
+  const p = (b.place & 0x1F) - 8;
+  let a = p;
+  if (p){ const sg = Math.sign(p), ab = Math.abs(p); a += sg; if (ab > 1) a += 0.36*sg; if (ab > 2) a += 0.216*sg; }
+  const az = -a * 2.2 * Math.PI / 180;
+  return {v, el, vel: [Math.sin(az)*Math.cos(el)*v, Math.sin(el)*v, Math.cos(az)*Math.cos(el)*v]};
+}
+const simCache = new Map();
+function simulate(b){
+  const key = [b.trajectory, b.spin, b.speed, b.place].join(",");
+  let r = simCache.get(key);
+  if (r) return r;
+  const L = launch(b), pos = [...HEAD], vel = [...L.vel];
+  let netH = null;
+  for (let i=0; pos[1] > 0 && i < 1000; i++){
+    const z0 = pos[2], y0 = pos[1];
+    for (let k=0;k<3;k++) pos[k] += vel[k]*DT;
+    if (netH === null && z0 < 0 && pos[2] >= 0) netH = y0 + (pos[1]-y0) * (-z0/(pos[2]-z0));
+    const sp = Math.hypot(...vel), f = DRAG * sp * DT;
+    for (let k=0;k<3;k++) vel[k] -= vel[k]*f;
+    vel[1] -= G*DT;
+  }
+  r = {x: -pos[0]*100, d: pos[2]*100, net: netH === null || netH < NET_H, v: L.v, el: L.el*180/Math.PI};
+  simCache.set(key, r);
+  return r;
+}
+
+const LSCAL = "amicus.calib.v1";
+let calib = lsGet(LSCAL, []);
+const ID = {x:[0, 50], d:[90, 30]};  // identity correction for the features below
+let corr = ID;
+let calMode = false;
+const fX = s => [1, s.x/50], fD = s => [1, (s.d-90)/30];
+const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i], 0);
+function predict(b){
+  const s = simulate(b);
+  return {x: dot(corr.x, fX(s)), d: dot(corr.d, fD(s)), net: s.net, v: s.v, el: s.el};
+}
+
+function solve(A, y){ // Gaussian elimination with partial pivoting
+  const n = y.length, M = A.map((r,i)=>[...r, y[i]]);
+  for (let c=0;c<n;c++){
+    let p = c; for (let r=c+1;r<n;r++) if (Math.abs(M[r][c])>Math.abs(M[p][c])) p=r;
+    [M[c],M[p]] = [M[p],M[c]];
+    for (let r=0;r<n;r++) if (r!==c){ const f=M[r][c]/M[c][c]; for (let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; }
+  }
+  return M.map((r,i)=>r[n]/r[i]);
+}
+function ridge(rows, w0, lam){
+  const n = w0.length;
+  const A = w0.map((_,i)=>w0.map((_,j)=> i===j ? lam[i] : 0));
+  const y = w0.map((w,i)=>lam[i]*w);
+  for (const [f,t] of rows) for (let i=0;i<n;i++){ y[i]+=f[i]*t; for (let j=0;j<n;j++) A[i][j]+=f[i]*f[j]; }
+  return solve(A, y);
+}
+function refit(){
+  // the offset adapts after 1 point; the scale needs a few points with different settings
+  corr = calib.length ? {
+    x: ridge(calib.map(c=>[fX(simulate(c.ball)), c.x]), ID.x, [0.5, 2]),
+    d: ridge(calib.map(c=>[fD(simulate(c.ball)), c.d]), ID.d, [0.5, 2]),
+  } : ID;
+  let err = 0;
+  for (const c of calib){ const p = predict(c.ball); err += Math.hypot(p.x-c.x, p.d-c.d); }
+  $("calStat").textContent = calib.length ? `${calib.length} points · avg error ${(err/calib.length).toFixed(0)} cm` : "no points (app model)";
+}
+
+const onTable = p => Math.abs(p.x) <= TW/2 && p.d >= 0 && p.d <= HALF;
+const sy = d => HALF + d;  // SVG y: robot end line at 0, net at 137, player end line at 274
+const ROBOT_Y = 112;
+
+function renderTable(){
+  const svg = $("table");
+  const hw = TW/2;
+  let s = `
+    <rect x="-95" y="112" width="190" height="196" fill="#0d1014"/>
+    <rect x="${-hw}" y="112" width="${TW}" height="${274-112}" fill="#1f5c99"/>
+    <path d="M${-hw} 112 V274 H${hw} V112" fill="none" stroke="#fff" stroke-width="2"/>
+    <line x1="0" y1="112" x2="0" y2="274" stroke="#fff" stroke-width="0.6"/>
+    <line x1="${-hw-15}" y1="137" x2="${hw+15}" y2="137" stroke="#ddd" stroke-width="2.5"/>
+    <text x="0" y="122" fill="#cfe3ff" font-size="7" text-anchor="middle" opacity=".8">▲ robot</text>
+    <text x="${hw-2}" y="134" fill="#cfe3ff" font-size="6" text-anchor="end" opacity=".8">net</text>`;
+  for (const d of [30, 60, 90, 120]) s += `<text x="${-hw-3}" y="${sy(d)+2}" fill="#8b95a3" font-size="5" text-anchor="end">${d}</text>`;
+  // calibration points: measured (cross) and error line to prediction
+  if (calMode) for (const c of calib){
+    const p = predict(c.ball), X = c.x, Y = sy(c.d);
+    s += `<line x1="${p.x}" y1="${sy(p.d)}" x2="${X}" y2="${Y}" stroke="#f5a623" stroke-width=".6" stroke-dasharray="2 1.5"/>
+          <path d="M${X-3} ${Y-3}L${X+3} ${Y+3}M${X-3} ${Y+3}L${X+3} ${Y-3}" stroke="#f5a623" stroke-width="1.2"/>`;
+  }
+  // predicted landing spots, straight line from the robot head (d = -126)
+  drill.balls.forEach((b,i)=>{
+    if (!b.on && i!==sel) return;
+    const p = predict(b), X = p.x, Y = sy(p.net ? -4 : p.d);   // a net ball is drawn on the net
+    const isSel = i===sel, ok = onTable(p) && !p.net;
+    const col = !ok ? "#ff4d4f" : isSel ? "#3fa7ff" : "#ffd166";
+    const op = isSel ? 1 : 0.55;
+    s += `<line x1="0" y1="${sy(-126)}" x2="${X}" y2="${Y}" stroke="${col}" stroke-width="${isSel?1.2:.7}" stroke-dasharray="3 2" opacity="${op}"/>
+          <circle cx="${X}" cy="${Y}" r="${isSel?6:5}" fill="${col}" opacity="${b.on?op:.25}" stroke="#000" stroke-width=".5"/>
+          <text x="${X}" y="${Y+2.3}" font-size="6.5" text-anchor="middle" fill="#000" font-weight="700" pointer-events="none">${i+1}</text>`;
+  });
+  svg.innerHTML = s;
+  const p = predict(drill.balls[sel]);
+  const side = Math.abs(p.x) < 2 ? "centre" : `${Math.abs(p.x).toFixed(0)} cm ${p.x<0?"left":"right"}`;
+  let where = `${p.d.toFixed(0)} cm from net, ${side}`;
+  if (p.net || p.d < 0) where = "into the net";
+  else if (p.d > HALF) where = `long, ${(p.d-HALF).toFixed(0)} cm past the end`;
+  else if (Math.abs(p.x) > TW/2) where += " (off the side)";
+  $("landInfo").textContent = `Ball ${sel+1}: ${where} · ${p.v.toFixed(1)} m/s, ${p.el.toFixed(0)}° up` + (calib.length ? " · calibrated" : "");
+}
+
+function svgPoint(e){
+  const svg = $("table"), pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const q = pt.matrixTransform(svg.getScreenCTM().inverse());
+  return {x: q.x, d: q.y - HALF};
+}
+function aimAt(t){
+  const b = drill.balls[sel];
+  const keepSpeed = $("aimKeep").checked;
+  let best = null;
+  for (let speed = keepSpeed ? b.speed : 0; speed <= (keepSpeed ? b.speed : 24); speed++){
+    for (let place = 0; place <= 16; place++){
+      const p = predict({...b, speed, place});
+      // squared miss in cm, plus a small cost per speed step so the speed does not jump without need
+      let cost = (p.x-t.x)**2 + (p.d-t.d)**2 + 4*(speed-b.speed)**2;
+      if (p.net) cost += 1e5;
+      if (!best || cost < best.cost) best = {cost, speed, place};
+    }
+  }
+  b.speed = best.speed; b.place = best.place;
+  saveCurrent(); renderSliders(); renderTable();
+}
+
+$("table").addEventListener("click", e=>{
+  const t = svgPoint(e);
+  if (calMode){
+    const b = drill.balls[sel];
+    calib.push({ball: Object.fromEntries(FIELDS.map(f=>[f[0], b[f[0]]])), x: +t.x.toFixed(1), d: +t.d.toFixed(1)});
+    lsSet(LSCAL, calib);
+    log(`calib point ${calib.length}: x ${t.x.toFixed(0)} cm, ${t.d.toFixed(0)} cm from net`);
+    refit(); renderTable();
+  } else aimAt(t);
+});
+function setMode(cal){
+  calMode = cal;
+  $("modeAim").classList.toggle("on", !cal); $("modeCal").classList.toggle("on", cal);
+  $("calBox").classList.toggle("on", cal); $("aimHelp").style.display = cal ? "none" : "";
+  renderTable();
+}
+$("modeAim").onclick = ()=>setMode(false);
+$("modeCal").onclick = ()=>setMode(true);
+$("calShoot").onclick = ()=> chr ? previewBall().catch(e=>log(e.message)) : log("connect first");
+$("calUndo").onclick = ()=>{ calib.pop(); lsSet(LSCAL, calib); refit(); renderTable(); };
+$("calReset").onclick = ()=>{ if (calib.length && confirm("Delete all calibration points?")){ calib = []; lsSet(LSCAL, calib); refit(); renderTable(); } };
+
+// ---------- UI ----------
+function setStatus(s){ $("status").textContent = s; }
+function setButtons(c){
+  $("btnConnect").disabled = c; $("btnDisconnect").disabled = !c;
+  $("btnStart").disabled = !c; $("btnStop").disabled = !c;
+}
+
+function renderBalls(){
+  const el = $("balls"); el.innerHTML = "";
+  drill.balls.forEach((b,i)=>{
+    const x = document.createElement("button");
+    x.textContent = i+1;
+    if (i===sel) x.classList.add("sel");
+    if (!b.on) x.classList.add("off");
+    x.onclick = ()=>{ sel=i; renderBalls(); renderSliders(); };
+    el.appendChild(x);
+  });
+  $("btnAdd").disabled = drill.balls.length>=10;
+  $("btnRemove").disabled = drill.balls.length<=1;
+  renderTable();
+}
+
+function renderSliders(){
+  const el = $("sliders"); el.innerHTML = "";
+  const b = drill.balls[sel];
+  for (const [k,label,min,max,,fmt] of FIELDS){
+    const row = document.createElement("div"); row.className = "slider";
+    row.innerHTML = `<label>${label}</label><input type="range" min="${min}" max="${max}" value="${b[k]}"><output>${fmt(b[k])}</output>`;
+    const inp = row.querySelector("input"), out = row.querySelector("output");
+    inp.oninput = ()=>{ b[k] = +inp.value; out.textContent = fmt(b[k]); saveCurrent(); renderTable(); };
+    el.appendChild(row);
+  }
+}
+
+// presets in localStorage
+const LS = "amicus.presets.v1", LSCUR = "amicus.current.v1";
+function lsGet(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} }
+function saveCurrent(){ lsSet(LSCUR, drill); }
+function renderPresets(selected){
+  const ps = lsGet(LS, {}), s = $("preset");
+  s.innerHTML = '<option value="">— saved drills —</option>' +
+    Object.keys(ps).sort().map(n=>`<option>${n.replace(/</g,"&lt;")}</option>`).join("");
+  if (selected) s.value = selected;
+}
+$("preset").onchange = e=>{
+  const ps = lsGet(LS, {}), d = ps[e.target.value];
+  if (!d) return;
+  drill = JSON.parse(JSON.stringify(d)); sel = 0;
+  syncTempo(); renderBalls(); renderSliders(); saveCurrent();
+};
+$("btnSave").onclick = ()=>{
+  const name = prompt("Drill name:", $("preset").value || "");
+  if (!name) return;
+  const ps = lsGet(LS, {}); ps[name] = drill; lsSet(LS, ps); renderPresets(name);
+};
+$("btnDel").onclick = ()=>{
+  const n = $("preset").value; if (!n || !confirm("Delete "+n+"?")) return;
+  const ps = lsGet(LS, {}); delete ps[n]; lsSet(LS, ps); renderPresets();
+};
+
+function syncTempo(){
+  $("bpm").value = drill.bpm; $("bpmOut").textContent = drill.bpm;
+  const pc = pauseCfg();
+  $("pOn").checked = pc.on; $("pRobot").checked = pc.robot;
+  $("pPer").value = pc.perSet; $("pSecs").value = pc.secs; $("pSets").value = pc.sets;
+  showPause();
+}
+function showPause(){
+  const pc = pauseCfg();
+  $("pPerOut").textContent = pc.perSet; $("pSecsOut").textContent = pc.secs+" s";
+  $("pSetsOut").textContent = pc.sets || "∞";
+  for (const id of ["pPer","pSecs","pSets","pRobot"]) $(id).disabled = !pc.on;
+}
+$("pOn").onchange = e=>{
+  const pc = pauseCfg(); pc.on = e.target.checked;
+  // first time: one set = one pass through the balls that are on
+  if (pc.on && !pc.touched){ pc.perSet = Math.max(1, drill.balls.filter(b=>b.on).length); $("pPer").value = pc.perSet; }
+  showPause(); saveCurrent();
+};
+$("pRobot").onchange = e=>{ pauseCfg().robot = e.target.checked; saveCurrent(); };
+$("pPer").oninput = e=>{ const pc = pauseCfg(); pc.perSet = +e.target.value; pc.touched = true; showPause(); saveCurrent(); };
+$("pSecs").oninput = e=>{ pauseCfg().secs = +e.target.value; showPause(); saveCurrent(); };
+$("pSets").oninput = e=>{ pauseCfg().sets = +e.target.value; showPause(); saveCurrent(); };
+$("bpm").oninput = e=>{ drill.bpm = +e.target.value; $("bpmOut").textContent = drill.bpm; saveCurrent(); };
+$("dur").oninput = e=>{ const s=+e.target.value; $("durOut").textContent = s? (s>=60? Math.floor(s/60)+"m"+(s%60?s%60+"s":"") : s+"s") : "∞"; };
+
+$("btnAdd").onclick = ()=>{ if(drill.balls.length<10){ drill.balls.push({...drill.balls[sel]}); sel=drill.balls.length-1; renderBalls(); renderSliders(); saveCurrent(); } };
+$("btnRemove").onclick = ()=>{ if(drill.balls.length>1){ drill.balls.splice(sel,1); sel=Math.min(sel,drill.balls.length-1); renderBalls(); renderSliders(); saveCurrent(); } };
+$("btnToggle").onclick = ()=>{ drill.balls[sel].on = !drill.balls[sel].on; renderBalls(); saveCurrent(); };
+$("btnPreview").onclick = ()=> chr ? previewBall().catch(e=>log(e.message)) : log("connect first");
+
+$("btnConnect").onclick = connect;
+$("btnDisconnect").onclick = disconnect;
+$("btnStart").onclick = ()=> (session && pausing ? resume() : start()).catch(e=>log(e.message));
+$("btnStop").onclick = ()=> stop().catch(e=>log(e.message));
+$("btnInfo").onclick = ()=> chr ? send(C.INFO).catch(e=>log(e.message)) : log("connect first");
+$("btnClear").onclick = ()=> logEl.textContent = "";
+document.querySelectorAll("[data-adj]").forEach(b=>{
+  b.onclick = ()=>{
+    if (!chr) return;
+    const [param, d] = b.dataset.adj.split(",").map(Number);
+    send(C.ADJ, [param, d>0 ? 0x01 : 0xFF]).catch(e=>log(e.message));
+  };
+});
+
+// init
+if (!navigator.bluetooth){ $("nobt").style.display = "block"; $("btnConnect").disabled = true; }
+const cur = lsGet(LSCUR, null);
+if (cur && Array.isArray(cur.balls) && cur.balls.length) drill = cur;
+refit();
+syncTempo(); renderPresets(); renderBalls(); renderSliders();
+</script>
+</body>
+</html>

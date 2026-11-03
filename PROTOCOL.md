@@ -149,3 +149,30 @@ Flight (`l1.e`), step 0.01 s until y ≤ 0: `pos += vel·dt`; `vel -= vel · (0.
 
 Both tables are copied into `web/index.html` (`SPEED_FAC`, `ANGLE_CORR`).
 Examples: default ball (92, 5, 6, 12, 8) lands 85 cm behind the net; place 0 or 16 lands 76 cm to the side and 71 cm behind the net.
+
+
+## Corrections from the full app analysis (see docs/APK_SPEC.md)
+1. **Device info (cmd 1) bytes**: `[0]=?`, `[1]=hardware version` (high nibble major, low nibble minor; app requires ≥ 16 = hw 1.0 to run the handshake), `[2]=bootloader version`, `[3]=fw major`, `[4]=fw minor`, `[5..6]=serial number LE` (a1.java:246, y.java).
+2. **Ball state 2 = "serve" ball** (UI switch "Serve", pink chip), allowed for the first 1–3 balls as a prefix — not a "random group".
+3. **cmd 36 = stop sample** (single-ball preview), 2 s timeout; app sets local state 4. cmd 35 = start sample, 1 s timeout.
+4. **cmd 26 = end calibration**: `[1]` save, `[0]` cancel. Calibration values are read with cmd 24 (reply `[status, height, topspin, sidespin, speed]`, signed); cmd 25 writes `[height, topspin, sidespin, speed]`, reply `[status, 4 bytes]`. Whether cmd 24 itself starts the robot's calibration sampling is not provable from the app (the app hides "Sample" after it — likely).
+5. **cmd 27 / cmd 28 = trajectory symmetry correction** (fw > 6.17): cmd 27 reply byte 1 = current value −2…+2; cmd 28 `[n]` with n = segment index 0…4 (= value + 2). Index vs. value encoding is slightly ambiguous.
+6. **cmd 30 wait mode** and **cmd 31 pass ball** are only sent when fw ≥ 6.24. cmd 30 reply = device info.
+7. **cmd 32 `[2]` = start in wait mode**: robot goes to state 15 (waiting for serve); app detects the serve sound and sends cmd 32 `[0]`.
+8. **cmd 44 payload** `[ball (1-based), t_lo, t_hi, seq (1-based slot in program mode)]`; app logs t as "timeToLaunch".
+9. **cmd 58** = cycle pause `[seconds]`; **cmd 59** = cycle play `[mode, n]` (mode 1 = seconds, else repetitions).
+10. **cmd 80 = learn remote**: notifications cmd 81 `[seconds left]`, cmd 82 `[stored button n]`, completion reply cmd 83.
+11. **cmd 84 buttons** (byte 1): 1 = start, 2/4 = bpm changed on the robot (re-read with cmd 43), 8 = stop. Only delivered when cmd 85 ≥ 1.
+12. **cmd 3 recalibrate** = "Reset head" button; reply arrives as cmd 5.
+13. **cmd 37 bits**: 1 = Type RND, 2 = "Scatter" (place rnd), 4 = Place RND.
+14. **cmd 57 mode**: 0 off, 1 time, 2 repetition (ball) mode. **cmd 39 mode**: 0 off, 1 time, 2 repetition, 3 unique (sequence mode; only for sequences).
+15. **cmd 18** is sent with state forced to 1; cmd 17 `[1]` selects it; then cmd 34 `[20]` and cmd 35.
+16. **cmd 34 reply** `0xF0` means OK (app then assumes the requested value); otherwise the byte is the value.
+17. **cmd 41** reply may arrive as cmd 41 or cmd 5.
+18. **cmd 50** reply `[slot, status]`; app also accepts a bare status.
+19. **cmd 7 error codes**: 1 feeding motor jam, 2 ball stuck between discs, 3 overheat, other = permanent jam.
+20. **Two replies per request** are caused by the official app reading the characteristic after every write; a Web Bluetooth client that does not read sees one notification (verify).
+21. **Keepalive**: app polls cmd 5 every 2 s continuously and disconnects after 6 s without any notification.
+22. Range bits: value capped at 7; firmware major must be > 5.
+23. Speed formula in PROTOCOL.md for 11–18 is correct (continuous; jadx text is garbled).
+24. Unload ball default: (153, 2, 6, 0, 8, 6); played with cmd 34 `[100]`, cmd 20, cmd 32 `[0]`.
