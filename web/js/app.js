@@ -18,7 +18,7 @@ class Nav {
     this.bar = $("#nav");
     this.items = TABS.map((t, i) => {
       const b = h("button", {class:"nav-item", onclick: () => this.select(i)},
-        h("span", {class:"nav-ic"}, icon(t.icon, {size:28})), h("span", {class:"nav-lbl"}, t.label));
+        h("span", {class:"nav-ic"}, icon(t.icon, {size:22})), h("span", {class:"nav-lbl"}, t.label));
       this.bar.append(b);
       return b;
     });
@@ -67,7 +67,7 @@ class Nav {
     if (tab === this.current) this.show();
   }
   setRobotIcon(name){
-    this.items[1].querySelector(".nav-ic").replaceChildren(icon(name, {size:28}));
+    this.items[1].querySelector(".nav-ic").replaceChildren(icon(name, {size:22}));
   }
   isVisible(screen){ return this.top() === screen; }
 }

@@ -26,15 +26,24 @@ export function drawTable(canvas, balls, {selected = -1, playing = -1, cycle = 0
   if (!w || !hh) return;
   const f = Math.min(w/50, 1.5);
   const R = clamp(hh/30, 2, 5);
-  const px = p => [p[2]*(w/2.74) + w/2, p[0]*(hh/1.525) + hh/2];
+  // zoom out when a ball lands off the table, so its dot stays visible (the original clips it)
+  let hl = 1.37, hw = 0.7625, out = false;
+  for (const b of balls || []) if (b){
+    const l = flight(b).land;
+    if (Math.abs(l[2]) > hl || Math.abs(l[0]) > hw){ out = true; hl = Math.max(hl, Math.abs(l[2])); hw = Math.max(hw, Math.abs(l[0])); }
+  }
+  const pad = out ? Math.max(R, 5)*1.2 + 2 : 0;
+  const k = Math.min((w - 2*pad)/(2*hl), (hh - 2*pad)/(2*hw));
+  const tw = 2.74*k, th = 1.525*k, x0 = (w - tw)/2, y0 = (hh - th)/2;
+  const px = p => [p[2]*k + w/2, p[0]*k + hh/2];
   ctx.globalAlpha = balls && balls.length ? 1 : 0.25;
-  ctx.fillStyle = COL.table; ctx.fillRect(0, 0, w, hh);
+  ctx.fillStyle = COL.table; ctx.fillRect(x0, y0, tw, th);
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = COL.tableEdge; ctx.lineWidth = 1.5*f; ctx.strokeRect(0, 0, w, hh);
+  ctx.strokeStyle = COL.tableEdge; ctx.lineWidth = 1.5*f; ctx.strokeRect(x0, y0, tw, th);
   ctx.strokeStyle = COL.line;
-  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, hh); ctx.stroke();               // net
+  ctx.beginPath(); ctx.moveTo(w/2, y0); ctx.lineTo(w/2, y0 + th); ctx.stroke();          // net
   ctx.lineWidth = 0.75*f;
-  ctx.beginPath(); ctx.moveTo(w*0.03, hh/2); ctx.lineTo(w*0.97, hh/2); ctx.stroke();    // centre line
+  ctx.beginPath(); ctx.moveTo(x0 + tw*0.03, hh/2); ctx.lineTo(x0 + tw*0.97, hh/2); ctx.stroke();   // centre line
   if (!balls) return;
   const o = px(HEAD);
   const pts = balls.map(b => b ? px(flight(b).land) : null);
@@ -47,7 +56,7 @@ export function drawTable(canvas, balls, {selected = -1, playing = -1, cycle = 0
   pts.forEach((p, i) => { if (p && i !== selected && i !== playing) dot(p, R, COL.table); });
   if (pts[selected]) dot(pts[selected], R*1.2, COL.selected);
   if (pts[playing]) dot(pts[playing], Math.max(R, 5)*1.2, COL.selected);
-  if (cycle > 0) drawLoop(ctx, 2, hh*3/4, hh/4, cycle > 1 ? "#ffff00" : "#ffffff");
+  if (cycle > 0) drawLoop(ctx, x0 + 2, y0 + th*3/4, th/4, cycle > 1 ? "#ffff00" : "#ffffff");
 }
 function drawLoop(ctx, x, y, s, color){
   ctx.save(); ctx.translate(x, y); ctx.scale(s/24, s/24); ctx.fillStyle = color;
@@ -59,10 +68,13 @@ function drawLoop(ctx, x, y, s, color){
 export function drawTrajectory(canvas, balls, {selected = -1, playing = -1} = {}){
   const [ctx, w, hh] = prep(canvas);
   if (!w) return;
-  const s = w/2.74;
+  // scale so the highest path fits (the original clips high balls)
+  let top = 0.3, half = 1.37;
+  for (const b of balls || []) if (b) for (const p of flight(b).path){ if (p[1] > top) top = p[1]; if (Math.abs(p[2]) + 0.08 > half) half = Math.abs(p[2]) + 0.08; }
+  const s = Math.min(w/(2*half), (hh - 4)/top);
   const px = p => [p[2]*s + w/2, hh - p[1]*s];
   ctx.strokeStyle = COL.primary; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(0, hh - 0.5); ctx.lineTo(w, hh - 0.5); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w/2 - 1.37*s, hh - 0.5); ctx.lineTo(w/2 + 1.37*s, hh - 0.5); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(w/2, hh); ctx.lineTo(w/2, hh - NET_H*s); ctx.stroke();
   const path = (b, color, lw) => {
     const pts = flight(b).path;
@@ -89,11 +101,13 @@ export class SpinView {
   layout(hh){
     const r = clamp(hh/5, 8, 36), w = clamp(r/6, 2, 4);
     const n = this.balls.length + (this.editable && this.balls.length < this.maxBalls ? 1 : 0);
+    const pad = Math.max(1.21*r, r + 8) + 2;          // halo / arrowhead must stay inside
+    const step = Math.max(0, (hh/2 - pad)/8);         // the original uses h/20 and clips at the edges
     const geo = [];
     for (let i = 0; i < n; i++){
       const b = this.balls[i];
       const d = b ? b.place - 8 : 0;
-      const y = hh/2 - d*(hh/20);
+      const y = hh/2 - d*step;
       let x;
       if (i === 0) x = w + r;
       else {
@@ -102,7 +116,7 @@ export class SpinView {
       }
       geo.push({x, y});
     }
-    return {r, w, geo, width: Math.ceil(w + n*2.2*r + r)};
+    return {r, w, geo, step, width: Math.ceil(w + n*2.2*r + r)};
   }
   draw(){
     const c = this.el;
@@ -110,7 +124,7 @@ export class SpinView {
     const L = this.layout(hh);
     c.style.width = L.width + "px";
     const [ctx] = prep(c);
-    this.geo = L.geo; this.r = L.r;
+    this.geo = L.geo; this.r = L.r; const step = L.step;
     const {r, w} = L;
     const order = this.balls.map((_, i) => i).filter(i => i !== this.selected && i !== this.playing);
     if (this.selected >= 0) order.push(this.selected);
@@ -121,7 +135,7 @@ export class SpinView {
       const hi = i === this.selected || i === this.playing;
       const rr = hi ? 1.1*r : r;
       if (b.range > 0){
-        const ext = b.range*(hh/20);
+        const ext = b.range*step;
         ctx.fillStyle = "#cccccc";
         roundRect(ctx, g.x - 6, g.y - ext - r, 12, 2*(ext + r), 4); ctx.fill();
       }
