@@ -10,3 +10,5 @@ bindRobotTab();
 robot.autoConnect();
 // iOS only allows audio after a user gesture: unlock it on the first tap (wait-mode beep)
 addEventListener("pointerdown", () => audioCtx(), {once:true});
+// long press must open our own menus, not the browser's context menu
+addEventListener("contextmenu", e => { if (!e.target.closest("input,textarea")) e.preventDefault(); });
